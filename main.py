@@ -9,8 +9,6 @@ import requests
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 # Render port talabini bajarishi uchun fonda ishlaydigan kichik veb-server
@@ -25,16 +23,9 @@ def run_server():
 
 threading.Thread(target=run_server, daemon=True).start()
 
-FONT_NAME = 'Arial'
-FONT_BOLD = 'Arial-Bold'
-try:
-  pdfmetrics.registerFont(TTFont('Arial', 'C:\\Windows\\Fonts\\arial.ttf'))
-  pdfmetrics.registerFont(
-      TTFont('Arial-Bold', 'C:\\Windows\\Fonts\\arialbd.ttf')
-  )
-except Exception:
-  FONT_NAME = 'Helvetica'
-  FONT_BOLD = 'Helvetica-Bold'
+# Serverda muammo chiqmasligi uchun universal Helvetica shriftidan foydalanamiz
+FONT_NAME = 'Helvetica'
+FONT_BOLD = 'Helvetica-Bold'
 
 BOT_TOKEN = '8811288035:AAG5a0yOYEJI7jMwJJVloqE0jJU12W5oTLE'
 
@@ -81,8 +72,8 @@ def get_airline_logo(airline_name):
       return Image(path, width=120, height=28)
 
   return Paragraph(
-      f"<b>✈️ {airline_name.upper()}</b>",
-      ParagraphStyle('A', fontName=FONT_BOLD, fontSize=10, alignment=1),
+      f"<b>AIRLINE: {airline_name.upper()}</b>",
+      ParagraphStyle('A', fontName=FONT_BOLD, fontSize=9, alignment=1),
   )
 
 
@@ -159,7 +150,7 @@ def build_pdf_confirmation(data, filename):
       textColor=colors.HexColor('#475569'),
   )
 
-  story.append(Paragraph('ПОДТВЕРЖДЕНИЕ №', style_title))
+  story.append(Paragraph('CONFIRMATION / PODTVERZHDENIE', style_title))
 
   from_parts = data['from_city'].split()
   to_parts = data['to_city'].split()
@@ -175,24 +166,23 @@ def build_pdf_confirmation(data, filename):
   arr_city_name = ' '.join(to_parts[1:]) if arr_code else data['to_city']
   route_title = f'{dep_city_name} - {arr_city_name}'.strip(' -')
 
-  # Grand Turan matn ko'rinishida (logo emas)
   gt_logo = Paragraph('<b>GRAND TURAN</b>', style_lbl_bold)
 
   left_cell = [
       gt_logo,
       Spacer(1, 4),
-      Paragraph('<b>Даты тура:</b>', style_lbl_bold),
+      Paragraph('<b>Tour Dates:</b>', style_lbl_bold),
       Paragraph(f"{data['tour_dates']}", style_lbl),
       Spacer(1, 2),
-      Paragraph('<b>ТУР:</b>', style_lbl_bold),
-      Paragraph(f'Авиабилеты {route_title}', style_lbl),
+      Paragraph('<b>Tour:</b>', style_lbl_bold),
+      Paragraph(f'Aviabileyty {route_title}', style_lbl),
   ]
 
   right_cell = [
-      Paragraph('<b>ЗАКАЗЧИК:</b>', style_lbl_bold),
+      Paragraph('<b>Client:</b>', style_lbl_bold),
       Paragraph('SHAMSIDDIN', style_lbl_bold),
       Paragraph('📞 +998 77 393 57 57', style_lbl),
-      Paragraph(f'Авиабилеты {route_title}', style_lbl),
+      Paragraph(f'Aviabileyty {route_title}', style_lbl),
   ]
 
   top_table = Table([[left_cell, right_cell]], colWidths=[275, 280])
@@ -209,7 +199,7 @@ def build_pdf_confirmation(data, filename):
 
   # Туристы
   t_hdr = Table(
-      [[Paragraph('<u>СПИСОК ТУРИСТОВ:</u>', style_lbl_bold)]], colWidths=[555]
+      [[Paragraph('<u>TOURIST LIST:</u>', style_lbl_bold)]], colWidths=[555]
   )
   t_hdr.setStyle(
       TableStyle([
@@ -223,11 +213,11 @@ def build_pdf_confirmation(data, filename):
 
   tourist_data = [
       [
-          Paragraph('№', style_c_bold),
-          Paragraph('Ф.И.О', style_c_bold),
-          Paragraph('Пол', style_c_bold),
-          Paragraph('Паспорт', style_c_bold),
-          Paragraph('Дата рождения', style_c_bold),
+          Paragraph('N', style_c_bold),
+          Paragraph('Full Name', style_c_bold),
+          Paragraph('Gender', style_c_bold),
+          Paragraph('Passport', style_c_bold),
+          Paragraph('Birth Date', style_c_bold),
       ],
       [
           Paragraph('1', style_c),
@@ -250,7 +240,7 @@ def build_pdf_confirmation(data, filename):
 
   # Транспорт
   tr_hdr = Table(
-      [[Paragraph('<u>ТРАНСПОРТ:</u>', style_lbl_bold)]], colWidths=[555]
+      [[Paragraph('<u>TRANSPORT:</u>', style_lbl_bold)]], colWidths=[555]
   )
   tr_hdr.setStyle(
       TableStyle([
@@ -275,15 +265,15 @@ def build_pdf_confirmation(data, filename):
   )
 
   h_dep = Table(
-      [[dep_img, Paragraph('<b>Отправление</b>', style_c_bold)]],
+      [[dep_img, Paragraph('<b>Departure</b>', style_c_bold)]],
       colWidths=[15, 110],
   )
   h_arr = Table(
-      [[dep_img, Paragraph('<b>Прибытие</b>', style_c_bold)]],
+      [[dep_img, Paragraph('<b>Arrival</b>', style_c_bold)]],
       colWidths=[15, 110],
   )
   h_bag = Table(
-      [[bag_img, Paragraph('<b>Класс/Багаж</b>', style_c_bold)]],
+      [[bag_img, Paragraph('<b>Class/Baggage</b>', style_c_bold)]],
       colWidths=[15, 110],
   )
 
@@ -303,7 +293,7 @@ def build_pdf_confirmation(data, filename):
   dep_cell = [
       Paragraph(dep_text, style_c),
       Spacer(1, 2),
-      Paragraph(f"час {data['dep_time']}", style_c),
+      Paragraph(f"time {data['dep_time']}", style_c),
   ]
 
   arr_text = (
@@ -314,16 +304,16 @@ def build_pdf_confirmation(data, filename):
   arr_cell = [
       Paragraph(arr_text, style_c),
       Spacer(1, 2),
-      Paragraph(f"час {data['arr_time']}", style_c),
+      Paragraph(f"time {data['arr_time']}", style_c),
   ]
 
   bag_cell = [
       Paragraph('<b>ECONOM</b>', style_c_bold),
-      Paragraph(f"Багаж до {data['baggage']} кг", style_c),
+      Paragraph(f"Baggage up to {data['baggage']} kg", style_c),
   ]
 
   transport_data = [
-      [Paragraph('<b>Авиакомпания</b>', style_c_bold), h_dep, h_arr, h_bag],
+      [Paragraph('<b>Airline</b>', style_c_bold), h_dep, h_arr, h_bag],
       [airline_cell, dep_cell, arr_cell, bag_cell],
   ]
 
@@ -341,14 +331,14 @@ def build_pdf_confirmation(data, filename):
   story.append(Spacer(1, 10))
 
   disclaimers = [
-      '* При получении данного подтверждения, проверьте, пожалуйста, правильность данных туристов, (Ф.И.О. , дата рождения, № паспорта и.т.д.)т.к. они будут внесены во все оформляемые документы.',
-      'Правильность заполнения документов определяется данным подтверждением.',
-      'Ответственность за правильность и точность указанной информации несет Агентство.',
-      '* Аннуляция выбранного тура производится в письменной форме. В случае отсутствия письменной формы об аннуляции, заявка считается действительной и подлежит к оплате в полном объеме.',
-      '* В случае отмены выбранного тура, взымается штраф, согласно Агентского договора.',
-      '* Аннуляция тура производится в полном объеме, включая авиаперелет.',
-      '* Оплата производится в сумах Республики Узбекистан по коммерческому курсу на день оплаты.',
-      '* При невозможности выполнения заявки на месте обслуживающая сторона имеет право заменить программу и условия пребывания на равнозначные.',
+      '* Upon receiving this confirmation, please check the accuracy of tourist details (Full Name, Date of Birth, Passport No., etc.) as they will be entered into all documents.',
+      'The correctness of document completion is determined by this confirmation.',
+      'The agency is responsible for the accuracy and precision of the specified information.',
+      '* Cancellation of the selected tour must be made in written form. In the absence of a written cancellation, the application is considered valid and subject to full payment.',
+      '* In case of tour cancellation, a penalty is charged according to the agency agreement.',
+      '* Tour cancellation is made in full, including air travel.',
+      '* Payment is made in UZS at the commercial exchange rate on the day of payment.',
+      '* If the application cannot be fulfilled on site, the servicing party has the right to replace the program and conditions with equivalent ones.',
   ]
   for d_text in disclaimers:
     story.append(Paragraph(d_text, style_disc))
