@@ -11,19 +11,29 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-# Render port talabini bajarishi uchun fonda ishlaydigan kichik veb-server
+
+# Render va UptimeRobot uchun to'g'ri ishlaydigan maxsus server
+class HealthCheckHandler(http.server.BaseHTTPRequestHandler):
+
+  def do_GET(self):
+    self.send_response(200)
+    self.send_header('Content-type', 'text/plain')
+    self.end_headers()
+    self.wfile.write(b'Bot is active and running!')
+
+  def log_message(self, format, *args):
+    pass  # Loglarni to'ldirib yubormasligi uchun o'chiramiz
+
+
 def run_server():
   port = int(os.environ.get('PORT', 10000))
   server_address = ('', port)
-  httpd = http.server.HTTPServer(
-      server_address, http.server.SimpleHTTPRequestHandler
-  )
+  httpd = http.server.HTTPServer(server_address, HealthCheckHandler)
   httpd.serve_forever()
 
 
 threading.Thread(target=run_server, daemon=True).start()
 
-# Serverda muammo chiqmasligi uchun universal Helvetica shriftidan foydalanamiz
 FONT_NAME = 'Helvetica'
 FONT_BOLD = 'Helvetica-Bold'
 
@@ -57,7 +67,6 @@ def find_file(base_name):
 
 def get_airline_logo(airline_name):
   name = airline_name.lower().strip()
-
   if 'khiva' in name:
     path = find_file('flykhiva')
     if path:
@@ -70,7 +79,6 @@ def get_airline_logo(airline_name):
     path = find_file('uzairways') or find_file('uzbekistan')
     if path:
       return Image(path, width=120, height=28)
-
   return Paragraph(
       f"<b>AIRLINE: {airline_name.upper()}</b>",
       ParagraphStyle('A', fontName=FONT_BOLD, fontSize=9, alignment=1),
@@ -197,7 +205,6 @@ def build_pdf_confirmation(data, filename):
   story.append(top_table)
   story.append(Spacer(1, 8))
 
-  # Туристы
   t_hdr = Table(
       [[Paragraph('<u>TOURIST LIST:</u>', style_lbl_bold)]], colWidths=[555]
   )
@@ -238,7 +245,6 @@ def build_pdf_confirmation(data, filename):
   story.append(t_table)
   story.append(Spacer(1, 8))
 
-  # Транспорт
   tr_hdr = Table(
       [[Paragraph('<u>TRANSPORT:</u>', style_lbl_bold)]], colWidths=[555]
   )
