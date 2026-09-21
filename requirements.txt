@@ -1,3 +1,2 @@
-aiogram
-reportlab
-requests
+aiogram>=3.0,<4.0
+PyMuPDF>=1.24,<2.0
