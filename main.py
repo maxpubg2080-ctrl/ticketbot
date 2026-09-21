@@ -13,6 +13,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import FSInputFile
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
+from PIL import Image, ImageChops
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
@@ -145,6 +146,41 @@ def get_logo(name: str):
         return None
 
 
+
+LOGO_SIZE_TOP = {
+    "uzbekistan airways": (130, 30),
+    "centrum air": (130, 32),
+    "fly khiva": (135, 31),
+}
+LOGO_SIZE_BOTTOM = {
+    "uzbekistan airways": (105, 34),
+    "centrum air": (105, 34),
+    "fly khiva": (108, 32),
+}
+
+
+def trimmed_logo_path(path: Path):
+    """Trim white/transparent margins from a logo for consistent placement."""
+    try:
+        cache = path.with_name(path.stem + '_trimmed.png')
+        if cache.exists() and cache.stat().st_mtime >= path.stat().st_mtime:
+            return cache
+        img = Image.open(path).convert('RGBA')
+        # Make a mask of visible / non-white pixels.
+        alpha = img.getchannel('A')
+        rgb = img.convert('RGB')
+        bg = Image.new('RGB', rgb.size, 'white')
+        diff = ImageChops.difference(rgb, bg).convert('L')
+        mask = ImageChops.lighter(alpha, diff)
+        bbox = mask.getbbox()
+        if bbox:
+            img = img.crop(bbox)
+        img.save(cache)
+        return cache
+    except Exception:
+        return path
+
+
 # ---------- Input parsing ----------
 def parse_datetime_line(line: str):
     parts = line.strip().split()
@@ -241,7 +277,6 @@ def build_data(lines):
 
 # ---------- PDF generation ----------
 def make_overlay(data, overlay_path: Path):
-    # The source template is 596 x 843 pt.
     W, H = 596, 843
     c = canvas.Canvas(str(overlay_path), pagesize=(W, H))
 
@@ -256,62 +291,72 @@ def make_overlay(data, overlay_path: Path):
         else:
             c.drawString(x, y, str(s))
 
+    # Dynamic airline logo in the top-right header area.
+    # The base template already has Grand Turan on the left and the underline;
+    # only the logo slot is covered and replaced here.
+    c.setFillColorRGB(1, 1, 1)
+    c.rect(382, H - 68, 172, 47, stroke=0, fill=1)
+    logo = get_logo(data["airline"])
+    if logo:
+        try:
+            logo_path = trimmed_logo_path(logo)
+            img = ImageReader(str(logo_path))
+            iw, ih = img.getSize()
+            max_w, max_h = LOGO_SIZE_TOP.get(logo_key(data["airline"]), (130, 30))
+            scale = min(max_w / iw, max_h / ih)
+            dw, dh = iw * scale, ih * scale
+            c.drawImage(img, 505 - dw/2, H - 48 - dh/2, width=dw, height=dh, mask='auto', preserveAspectRatio=True)
+        except Exception:
+            txt(505, 49, data["airline"].upper(), 8.5, BLACK, True, "center")
+    else:
+        txt(505, 49, data["airline"].upper(), 8.5, BLACK, True, "center")
+
     # Top blue info box
     txt(110, 217, data["tour_date"], 9.7)
     route = f'{data["from_city"]} - {data["to_city"]} (Aviabilet)'
     txt(124, 238, route, 9.6)
 
-    txt(470, 229, data["name"], 9.6, BLACK, True, "center")
-    txt(470, 249, "+998 77 393 57 57", 8.9, BLUE, True, "center")
+    # Manager name and phone are static in template.pdf and intentionally untouched.
 
     # Passenger row
     txt(120, 352, data["name"], 9.4, BLUE, True)
     txt(484, 352, "MR" if data["gender"] in {"M", "MALE", "MR", "ERKAK"} else "MRS",
         9.4, BLUE, True, "center")
 
-    # Airline logo + flight code
-    logo = get_logo(data["airline"])
+    # Bottom airline logo in the Aviation Company cell.
+    # Cell is blank in template, so the logo is fully dynamic.
     if logo:
         try:
-            img = ImageReader(str(logo))
+            img = ImageReader(str(trimmed_logo_path(logo)))
             iw, ih = img.getSize()
-            max_w, max_h = 90, 30
+            max_w, max_h = LOGO_SIZE_BOTTOM.get(logo_key(data["airline"]), (105, 34))
             scale = min(max_w / iw, max_h / ih)
             dw, dh = iw * scale, ih * scale
-            c.drawImage(
-                img,
-                128 - dw / 2,
-                H - 478 - dh / 2,
-                width=dw,
-                height=dh,
-                preserveAspectRatio=True,
-                mask="auto",
-            )
+            c.drawImage(img, 113 - dw/2, H - 460 - dh/2, width=dw, height=dh, mask='auto', preserveAspectRatio=True)
         except Exception:
-            txt(128, 478, data["airline"], 8, BLACK, True, "center")
+            txt(113, 468, data["airline"].upper(), 8.4, BLACK, True, "center")
     else:
-        txt(128, 478, data["airline"], 8, BLACK, True, "center")
+        txt(113, 468, data["airline"].upper(), 8.4, BLACK, True, "center")
 
-    txt(128, 507, data["flight_code"], 9.6, BLUE, True, "center")
+    txt(113, 497, data["flight_code"], 9.6, BLUE, True, "center")
 
     # Departure
     if data["from_code"]:
         txt(242, 474, data["from_code"], 15, BLUE, True, "center")
     txt(242, 495, data["from_city"], 9.4, BLACK, True, "center")
-    txt(242, 507, f'{data["dep_time"]} - {data["dep_date"]}', 8.6, BLACK, False, "center")
+    txt(242, 511, f'{data["dep_time"]} - {data["dep_date"]}', 9.0, BLACK, False, "center")
 
     # Arrival
     if data["to_code"]:
         txt(381, 474, data["to_code"], 15, BLUE, True, "center")
     txt(381, 495, data["to_city"], 9.4, BLACK, True, "center")
-    txt(381, 507, f'{data["arr_time"]} - {data["arr_date"]}', 8.6, BLACK, False, "center")
+    txt(381, 511, f'{data["arr_time"]} - {data["arr_date"]}', 9.0, BLACK, False, "center")
 
     # Class / baggage
     txt(496, 486, data["travel_class"], 9.6, BLUE, True, "center")
     txt(496, 506, f'{data["baggage"]} KG Bagaj', 8.8, GREEN, True, "center")
 
     c.save()
-
 
 def build_pdf(data, output_path: Path):
     if not TEMPLATE.exists():
