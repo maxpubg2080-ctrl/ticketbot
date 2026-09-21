@@ -3,6 +3,7 @@ import asyncio
 import http.server
 import os
 import threading
+import time
 from pathlib import Path
 from datetime import datetime
 
@@ -10,6 +11,7 @@ import fitz
 import requests
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart
+from aiogram.exceptions import TelegramConflictError
 from aiogram.types import FSInputFile
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
@@ -25,13 +27,24 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN Environment Variable topilmadi.")
 
-# ---------- Web health check ----------
+# ---------- Web health check / Render ----------
 class HealthCheckHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        self.send_response(200)
+        if self.path in ("/", "/health", "/healthz"):
+            body = b"Grand Turan bot is active!"
+            self.send_response(200)
+        else:
+            body = b"Not found"
+            self.send_response(404)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_HEAD(self):
+        self.send_response(200 if self.path in ("/", "/health", "/healthz") else 404)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.end_headers()
-        self.wfile.write(b"Grand Turan bot is active!")
 
     def log_message(self, fmt, *args):
         return
@@ -39,11 +52,34 @@ class HealthCheckHandler(http.server.BaseHTTPRequestHandler):
 
 def run_server():
     port = int(os.environ.get("PORT", "10000"))
-    server = http.server.HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    server = http.server.ThreadingHTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    server.daemon_threads = True
     server.serve_forever()
 
 
 threading.Thread(target=run_server, daemon=True).start()
+
+
+def keepalive_request(url: str):
+    try:
+        r = requests.get(url.rstrip("/") + "/healthz", timeout=8)
+        r.close()
+    except Exception:
+        pass
+
+
+async def keepalive_loop():
+    # Render exposes RENDER_EXTERNAL_URL automatically. While the service is awake,
+    # this makes a light inbound request every 10 minutes. An external monitor is
+    # still the reliable way to keep a Free service awake after it has already slept.
+    url = os.environ.get("KEEPALIVE_URL", "").strip() or os.environ.get("RENDER_EXTERNAL_URL", "").strip()
+    if not url:
+        return
+    interval = max(300, int(os.environ.get("KEEPALIVE_SECONDS", "600")))
+    await asyncio.sleep(30)
+    while True:
+        await asyncio.to_thread(keepalive_request, url)
+        await asyncio.sleep(interval)
 
 
 # ---------- Fonts ----------
@@ -149,38 +185,42 @@ def get_logo(name: str):
 # Maximum logo bounding boxes (width, height), points.
 # Each logo is fitted inside its box with the original aspect ratio preserved.
 LOGO_SIZE_TOP = {
-    "uzbekistan airways": (130, 30),
-    "centrum air": (145, 34),
-    "fly khiva": (135, 31),
+    "uzbekistan airways": (128, 30),
+    "centrum air": (132, 29),
+    "fly khiva": (132, 30),
 }
 LOGO_SIZE_BOTTOM = {
-    "uzbekistan airways": (105, 34),
-    "centrum air": (118, 32),
-    "fly khiva": (108, 32),
+    # Sized by the visible logo after white-background cleanup.
+    "uzbekistan airways": (100, 25),
+    "centrum air": (104, 24),
+    "fly khiva": (104, 26),
 }
 
 
 def trimmed_logo_path(path: Path):
-    """Trim white/transparent margins from a logo for consistent placement."""
+    """Remove white/transparent margins and make near-white background transparent."""
     try:
-        cache = path.with_name(path.stem + '_trimmed.png')
+        cache = path.with_name(path.stem + '_clean.png')
         if cache.exists() and cache.stat().st_mtime >= path.stat().st_mtime:
             return cache
         img = Image.open(path).convert('RGBA')
-        # Make a mask of visible / non-white pixels.
+        px = img.load()
+        for y in range(img.height):
+            for x in range(img.width):
+                r, g, b, a = px[x, y]
+                if a == 0:
+                    continue
+                # Remove white/near-white background only; keep logo colors intact.
+                if r >= 245 and g >= 245 and b >= 245:
+                    px[x, y] = (255, 255, 255, 0)
         alpha = img.getchannel('A')
-        rgb = img.convert('RGB')
-        bg = Image.new('RGB', rgb.size, 'white')
-        diff = ImageChops.difference(rgb, bg).convert('L')
-        mask = ImageChops.lighter(alpha, diff)
-        bbox = mask.getbbox()
+        bbox = alpha.getbbox()
         if bbox:
             img = img.crop(bbox)
         img.save(cache)
         return cache
     except Exception:
         return path
-
 
 def draw_logo_contained(c, logo_path: Path, page_h, cx, cy_from_top, max_w, max_h):
     """Fit a logo into a bounding box without stretching it."""
@@ -338,7 +378,7 @@ def make_overlay(data, overlay_path: Path):
     if logo:
         try:
             max_w, max_h = LOGO_SIZE_BOTTOM.get(logo_key(data["airline"]), (105, 34))
-            draw_logo_contained(c, logo, H, 113, 460, max_w, max_h)
+            draw_logo_contained(c, logo, H, 113, 455, max_w, max_h)
         except Exception:
             txt(113, 468, data["airline"].upper(), 8.4, BLACK, True, "center")
     else:
@@ -428,7 +468,26 @@ async def handle_text(message: types.Message):
 
 
 async def main():
-    await dp.start_polling(bot)
+    # Remove any webhook before polling. This prevents a stale webhook from
+    # competing with getUpdates.
+    await bot.delete_webhook(drop_pending_updates=False)
+    asyncio.create_task(keepalive_loop())
+
+    backoff = 5
+    while True:
+        try:
+            await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+            break
+        except TelegramConflictError:
+            print("TelegramConflictError: another bot instance is polling. Retrying...")
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 60)
+        except (asyncio.CancelledError, KeyboardInterrupt):
+            raise
+        except Exception as exc:
+            print(f"Polling error: {exc}. Retrying in {backoff}s...")
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 60)
 
 
 if __name__ == "__main__":
