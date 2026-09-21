@@ -73,8 +73,8 @@ LOGO_URLS = {
     "uzbekistan": "https://raw.githubusercontent.com/maxpubg2080-ctrl/ticketbot/main/uzairways.png",
     "uzairways": "https://raw.githubusercontent.com/maxpubg2080-ctrl/ticketbot/main/uzairways.png",
     "uzbekistan airways": "https://raw.githubusercontent.com/maxpubg2080-ctrl/ticketbot/main/uzairways.png",
-    "centrum": "https://raw.githubusercontent.com/maxpubg2080-ctrl/ticketbot/main/centrum.png",
-    "centrum air": "https://raw.githubusercontent.com/maxpubg2080-ctrl/ticketbot/main/centrum.png",
+    "centrum": "https://api.logobank.uz/media/logos_png/CENTRUM_AIR-01.png",
+    "centrum air": "https://api.logobank.uz/media/logos_png/CENTRUM_AIR-01.png",
     "fly khiva": "https://raw.githubusercontent.com/maxpubg2080-ctrl/ticketbot/main/flykhiva.png",
     "flykhiva": "https://raw.githubusercontent.com/maxpubg2080-ctrl/ticketbot/main/flykhiva.png",
 }
@@ -107,7 +107,7 @@ def find_local_logo(name: str):
     if n == "fly khiva":
         candidates = ["flykhiva.png", "fly_khiva.png"]
     elif n == "centrum air":
-        candidates = ["centrum.png", "centrumair.png"]
+        candidates = ["centrum_new.png", "centrumair_new.png"]
     elif n == "uzbekistan airways":
         candidates = ["uzairways.png", "uzbekistan.png", "uzairways.jpg"]
     for fname in candidates:
@@ -129,7 +129,7 @@ def get_logo(name: str):
 
     cache_name = {
         "fly khiva": "flykhiva.png",
-        "centrum air": "centrum.png",
+        "centrum air": "centrum_new.png",
         "uzbekistan airways": "uzairways.png",
     }.get(key)
 
@@ -146,17 +146,16 @@ def get_logo(name: str):
         return None
 
 
-
 # Maximum logo bounding boxes (width, height), points.
 # Each logo is fitted inside its box with the original aspect ratio preserved.
 LOGO_SIZE_TOP = {
     "uzbekistan airways": (130, 30),
-    "centrum air": (108, 24),
+    "centrum air": (145, 34),
     "fly khiva": (135, 31),
 }
 LOGO_SIZE_BOTTOM = {
     "uzbekistan airways": (105, 34),
-    "centrum air": (88, 24),
+    "centrum air": (118, 32),
     "fly khiva": (108, 32),
 }
 
