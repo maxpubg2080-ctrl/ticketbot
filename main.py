@@ -147,14 +147,16 @@ def get_logo(name: str):
 
 
 
+# Maximum logo bounding boxes (width, height), points.
+# Each logo is fitted inside its box with the original aspect ratio preserved.
 LOGO_SIZE_TOP = {
     "uzbekistan airways": (130, 30),
-    "centrum air": (130, 32),
+    "centrum air": (108, 24),
     "fly khiva": (135, 31),
 }
 LOGO_SIZE_BOTTOM = {
     "uzbekistan airways": (105, 34),
-    "centrum air": (105, 34),
+    "centrum air": (88, 24),
     "fly khiva": (108, 32),
 }
 
@@ -179,6 +181,20 @@ def trimmed_logo_path(path: Path):
         return cache
     except Exception:
         return path
+
+
+def draw_logo_contained(c, logo_path: Path, page_h, cx, cy_from_top, max_w, max_h):
+    """Fit a logo into a bounding box without stretching it."""
+    img = ImageReader(str(trimmed_logo_path(logo_path)))
+    iw, ih = img.getSize()
+    if not iw or not ih:
+        return False
+    scale = min(max_w / float(iw), max_h / float(ih))
+    dw, dh = iw * scale, ih * scale
+    x = cx - dw / 2
+    y = page_h - cy_from_top - dh / 2
+    c.drawImage(img, x, y, width=dw, height=dh, mask='auto', preserveAspectRatio=True)
+    return True
 
 
 # ---------- Input parsing ----------
@@ -299,13 +315,8 @@ def make_overlay(data, overlay_path: Path):
     logo = get_logo(data["airline"])
     if logo:
         try:
-            logo_path = trimmed_logo_path(logo)
-            img = ImageReader(str(logo_path))
-            iw, ih = img.getSize()
             max_w, max_h = LOGO_SIZE_TOP.get(logo_key(data["airline"]), (130, 30))
-            scale = min(max_w / iw, max_h / ih)
-            dw, dh = iw * scale, ih * scale
-            c.drawImage(img, 505 - dw/2, H - 48 - dh/2, width=dw, height=dh, mask='auto', preserveAspectRatio=True)
+            draw_logo_contained(c, logo, H, 505, 48, max_w, max_h)
         except Exception:
             txt(505, 49, data["airline"].upper(), 8.5, BLACK, True, "center")
     else:
@@ -327,12 +338,8 @@ def make_overlay(data, overlay_path: Path):
     # Cell is blank in template, so the logo is fully dynamic.
     if logo:
         try:
-            img = ImageReader(str(trimmed_logo_path(logo)))
-            iw, ih = img.getSize()
             max_w, max_h = LOGO_SIZE_BOTTOM.get(logo_key(data["airline"]), (105, 34))
-            scale = min(max_w / iw, max_h / ih)
-            dw, dh = iw * scale, ih * scale
-            c.drawImage(img, 113 - dw/2, H - 460 - dh/2, width=dw, height=dh, mask='auto', preserveAspectRatio=True)
+            draw_logo_contained(c, logo, H, 113, 460, max_w, max_h)
         except Exception:
             txt(113, 468, data["airline"].upper(), 8.4, BLACK, True, "center")
     else:
