@@ -143,7 +143,9 @@ def find_local_logo(name: str):
     if n == "fly khiva":
         candidates = ["flykhiva.png", "fly_khiva.png"]
     elif n == "centrum air":
-        candidates = ["centrum_new.png", "centrumair_new.png"]
+        # Do not use any old/local centrum_new.png files: earlier versions
+        # could contain the wrong logo. Use the dedicated official-logo cache below.
+        candidates = ["centrum_air_logo.png", "centrum_air_logo.jpg", "centrum_air_logo.webp"]
     elif n == "uzbekistan airways":
         candidates = ["uzairways.png", "uzbekistan.png", "uzairways.jpg"]
     for fname in candidates:
@@ -165,7 +167,7 @@ def get_logo(name: str):
 
     cache_name = {
         "fly khiva": "flykhiva.png",
-        "centrum air": "centrum_new.png",
+        "centrum air": "centrum_air_logo.png",
         "uzbekistan airways": "uzairways.png",
     }.get(key)
 
@@ -190,10 +192,11 @@ LOGO_SIZE_TOP = {
     "fly khiva": (132, 30),
 }
 LOGO_SIZE_BOTTOM = {
-    # Sized by the visible logo after white-background cleanup.
-    "uzbekistan airways": (100, 25),
-    "centrum air": (104, 24),
-    "fly khiva": (104, 26),
+    # Bottom logos sit a little lower and slightly shorter vertically so the
+    # flight code below always has clear space. Aspect ratio is preserved.
+    "uzbekistan airways": (100, 21),
+    "centrum air": (102, 19),
+    "fly khiva": (104, 22),
 }
 
 
@@ -378,7 +381,7 @@ def make_overlay(data, overlay_path: Path):
     if logo:
         try:
             max_w, max_h = LOGO_SIZE_BOTTOM.get(logo_key(data["airline"]), (105, 34))
-            draw_logo_contained(c, logo, H, 113, 455, max_w, max_h)
+            draw_logo_contained(c, logo, H, 113, 463, max_w, max_h)
         except Exception:
             txt(113, 468, data["airline"].upper(), 8.4, BLACK, True, "center")
     else:
