@@ -82,8 +82,7 @@ async def handle_text(message: types.Message):
 
     if not session_active(user_id):
         await message.answer(
-            "🔐 Avval kodni kiriting.\n\n"
-            "Botdan foydalanish uchun: 2009"
+            "🔐 Avval kodni kiriting."
         )
         return
 
