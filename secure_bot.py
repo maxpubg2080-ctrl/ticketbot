@@ -15,7 +15,7 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN Environment Variable topilmadi.")
 
-ACCESS_CODE = os.environ.get("ACCESS_CODE", "2009").strip()
+ACCESS_CODE = os.environ.get("ACCESS_CODE", "2008").strip()
 
 try:
     ACCESS_HOURS = float(os.environ.get("ACCESS_HOURS", "2"))
